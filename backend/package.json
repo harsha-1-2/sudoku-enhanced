@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+   "load-test": "artillery run artillery/load-test.yml",
+  "load-test:socket": "artillery run artillery/socket-test.yml",
+  "load-test:report": "artillery run artillery/load-test.yml --output artillery/report.json && artillery report artillery/report.json"
   },
   "author": "",
   "license": "ISC",

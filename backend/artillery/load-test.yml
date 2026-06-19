@@ -1,0 +1,101 @@
+# artillery/load-test.yml
+config:
+  target: "http://localhost:5000"
+  processor: "./helpers.js"
+  phases:
+    - duration: 30
+      arrivalRate: 5
+      name: "Warm up"
+    - duration: 60
+      arrivalRate: 20
+      name: "Ramp up load"
+    - duration: 30
+      arrivalRate: 5
+      name: "Cool down"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+  plugins:
+    expect: {}
+
+scenarios:
+  # ── 1. Register → Login (fixed) ──────────────────────────────
+  - name: "Register and Login"
+    weight: 25
+    beforeScenario: "generateUser"
+    flow:
+      - post:
+          url: "/api/auth/register"
+          json:
+            username: "{{ userId }}"
+            email: "{{ userEmail }}"
+            password: "TestPassword123"
+          expect:
+            - statusCode: 200
+
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "{{ userEmail }}"
+            password: "TestPassword123"
+          expect:
+            - statusCode: 200
+
+  # ── 2. Login → Hit Auth-Protected Routes ─────────────────────
+  # Uses a pre-seeded user you create once manually before running
+  - name: "Authenticated Routes"
+    weight: 25
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "seed@test.com"
+            password: "TestPassword123"
+          expect:
+            - statusCode: 200
+
+      - get:
+          url: "/api/auth/me"
+          expect:
+            - statusCode: 200
+
+      - get:
+          url: "/api/sudoku/stats"
+          expect:
+            - statusCode: 200
+
+      - post:
+          url: "/api/sudoku/complete"
+          json:
+            timeTaken: 120
+            hintsUsed: 2
+            difficulty: "medium"
+          expect:
+            - statusCode: 200
+
+  # ── 3. Leaderboard ───────────────────────────────────────────
+  - name: "Leaderboard"
+    weight: 25
+    flow:
+      - get:
+          url: "/api/leaderboard"
+          expect:
+            - statusCode: 200
+
+  # ── 4. Sudoku Generate ───────────────────────────────────────
+  - name: "Sudoku Generate"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/sudoku/generate"
+          expect:
+            - statusCode: 200
+
+  # ── 5. Room Info ─────────────────────────────────────────────
+  - name: "Room Lookup"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/room/TESTROOM"
+          expect:
+            - statusCode: [200, 404]   # 404 is fine, just testing latency

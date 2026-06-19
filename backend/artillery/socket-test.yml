@@ -1,0 +1,26 @@
+# artillery/socket-test.yml
+config:
+  target: "http://localhost:5000"
+  phases:
+    - duration: 20
+      arrivalRate: 3
+      name: "Socket load"
+  engines:
+    socketio:
+      transports:
+        - websocket
+
+scenarios:
+  - name: "Socket Matchmaking"
+    engine: socketio
+    flow:
+      # Attach auth cookie manually — Artillery socketio doesn't handle cookies
+      # so this tests the socket handshake latency only (pre-auth check)
+      - emit:
+          channel: "find_match"
+          data: {}
+      - think: 1
+      - emit:
+          channel: "find_match"
+          data: {}
+      - think: 2
