@@ -1,0 +1,479 @@
+--- ppt/slides/slide1.xml
+6
+5
+2
+4
+3
+1
+2
+9
+4
+3
+8
+2
+REALTIME MULTIPLAYER
+SUDOKU
+PLATFORM
+Production Engineering Roadmap
+End-to-End Architecture Overhaul  ·  14 Engineering Phases
+Node.js
+TypeScript
+Redis
+PostgreSQL
+Socket.IO
+Docker
+--- ppt/slides/slide10.xml
+14-Phase Engineering Roadmap
+Ordered to minimise chaos — each phase builds the foundation for the next
+P0
+Audit + Cleanup
+Foundation
+P1
+TypeScript
+Foundation
+P2
+Modular Monolith
+Architecture
+P3
+Security Hardening
+Architecture
+P4
+PostgreSQL+Prisma
+Data
+P5
+Redis
+Scale
+P6
+Auth. Game Engine
+Core
+P7
+Daily Challenge
+Feature
+P8
+Hint Engine
+Feature
+P9
+Frontend Refactor
+Frontend
+P10
+Testing
+Quality
+P11
+Load Testing
+Quality
+P12
+Observability
+Prod
+P13
+DevOps + CI/CD
+Prod
+P14
+Docs + Demo
+Placement
+--- ppt/slides/slide11.xml
+P0
+Phase 0 — System Audit + Cleanup
+You cannot refactor what you don't fully understand
+GOAL  ·  Document the exact current state before touching any code
+TASKS
+Remove committed node_modules, fix .gitignore Document current HTTP request + response flow Document Socket.IO event lifecycle end-to-end Map in-memory state vs MongoDB-persisted state Identify all client trust boundary violations List all scaling blockers and security gaps Draw current architecture diagram Produce known-issues document
+OUTPUT
+Clean repository baseline Architecture flow document Known-issues list Audit report
+WHY THIS PHASE EXISTS
+Jumping into refactoring without mapping the system guarantees reproducing the same bugs in a new folder. Every phase after this depends on what Phase 0 reveals.
+--- ppt/slides/slide12.xml
+P1
+Phase 1 — TypeScript Foundation
+Type safety is the safety net you need before a large-scale refactor
+GOAL  ·  Introduce TypeScript across frontend and backend before any structural changes
+TASKS
+Install typescript, ts-node, tsconfig.json for backend Add @types/node, @types/express, @types/socket.io Convert backend .js files to .ts incrementally Convert frontend .jsx to .tsx Create shared/types/ for socket payload definitions Define API response, room, and game state types Enforce noImplicitAny in tsconfig strict mode Add ts build step to CI pipeline
+OUTPUT
+Typed backend Typed frontend Shared socket contracts Type-safe refactoring baseline
+WHY THIS PHASE EXISTS
+TypeScript catches the bugs most likely in a large refactor: wrong payload shapes, undefined properties, mismatched socket event names. Without it, Phases 2–5 are much more dangerous.
+--- ppt/slides/slide13.xml
+P2
+Phase 2 — Modular Monolith Refactor
+Turn a chaotic codebase into clean, domain-driven architecture
+GOAL  ·  Decompose the God Object into ownable domain modules
+TASKS
+Create src/ directory structure and migrate all files Create modules/auth/ (controller, service, repository) Create modules/game/ (engine, validator, service) Create modules/matchmaking/ (queue, pairing logic) Create modules/leaderboard/ (aggregation, stats) Create modules/daily-challenge/ (pipeline, scheduler) Split gameSocket.js into game.socket + matchmaking.socket Create infrastructure/ for db, redis, sockets, logger
+OUTPUT
+Clean domain ownership Modular testable services Separated socket concerns Scalable folder structure
+WHY THIS PHASE EXISTS
+The God Object means one change can break unrelated flows. Domain modules give each concern a single owner — the foundational requirement before adding Redis, PostgreSQL, or any new feature safely.
+--- ppt/slides/slide14.xml
+P3
+Phase 3 — Security Hardening
+Fix trust boundaries — the single most critical production requirement
+GOAL  ·  Stop trusting the client for anything security-critical
+TASKS
+Remove userId from all socket event payloads Add socket auth middleware — verify JWT at connect time Store verified identity in socket.data.userId Move JWT to httpOnly secure cookies Implement refresh token endpoint and rotation logic Add Zod validation on every socket event payload Add Zod validation on every HTTP API route Implement rate limiting on auth endpoints and socket events Fix user._id vs user.id inconsistency across codebase
+OUTPUT
+Server-derived identity Validated payloads Secure httpOnly auth Rate-limited endpoints
+WHY THIS PHASE EXISTS
+In any competitive multiplayer system, the client is adversarial. Fake identity in socket payloads can corrupt leaderboards, claim false wins, and hijack rooms. This phase removes that entire attack surface.
+--- ppt/slides/slide15.xml
+P4
+Phase 4 — PostgreSQL + Prisma Migration
+Game data is relational — stop using the wrong database
+GOAL  ·  Replace MongoDB with PostgreSQL for all durable structured data
+TASKS
+Provision PostgreSQL via Docker compose Install Prisma and initialise the schema Design tables: users, matches, rooms, moves Design tables: daily_challenges, ratings, leaderboard_entries Add foreign keys and indexes on all query paths Add transactions for match completion + stats updates Migrate existing User and Leaderboard data Update all repositories to use Prisma client Add connection pooling configuration
+OUTPUT
+Relational data model Transactional integrity Indexed query paths Type-safe Prisma client
+WHY THIS PHASE EXISTS
+Match history, ratings, leaderboards, and daily puzzles form a naturally relational graph. MongoDB's flexibility was never needed — only its downsides remain: no joins, no transactions. PostgreSQL fixes both.
+--- ppt/slides/slide16.xml
+P5
+Phase 5 — Redis Integration
+Move all shared transient state out of process memory
+GOAL  ·  Externalise realtime state to enable true horizontal scaling
+TASKS
+Set up Redis via Docker compose Move matchmaking queue to Redis sorted set Move active room snapshots to Redis hashes Move online presence and heartbeat to Redis Move rate-limit counters to Redis Install and configure @socket.io/redis-adapter Add Redis Pub/Sub for cross-instance event broadcasts Add leaderboard cache with TTL-based invalidation Add game timer synchronisation across instances
+OUTPUT
+Shared matchmaking queue Distributed room state Cross-instance Socket.IO Cached leaderboard reads
+WHY THIS PHASE EXISTS
+This is the phase that makes horizontal scaling possible. Without Redis, adding a second server immediately breaks matchmaking. With it, every server instance sees the same queue and the same active rooms.
+--- ppt/slides/slide17.xml
+P6
+Phase 6 — Server-Authoritative Game Engine
+The server owns the board. The client only renders and sends actions.
+GOAL  ·  Centralise all game truth on the server and structurally prevent cheating
+TASKS
+Create GameEngine class with full board ownership Server generates, stores, and validates all board state Server rejects invalid moves before applying them Server owns and broadcasts game timer to clients Server detects completion and calculates penalties Frontend becomes a read-only view of server events Add reconnect recovery — restore board and timer state Add forfeit logic on disconnect timeout
+OUTPUT
+Cheat-proof game state Server-owned timers Reconnect recovery Authoritative outcomes
+WHY THIS PHASE EXISTS
+If the client owns game state, any player with browser devtools can fake a completed board. A server-authoritative engine makes cheating structurally impossible — there is nothing in client state to manipulate.
+--- ppt/slides/slide18.xml
+P7
+Phase 7 — Daily Challenge System
+Turn a utility into a competitive platform with daily user retention
+GOAL  ·  One shared puzzle per day, global rankings, and streak tracking
+TASKS
+Build daily puzzle generation or rotation pipeline Store daily puzzles in PostgreSQL by date and difficulty Create daily leaderboard: time + mistakes + hints used Add penalty scoring for mistakes and hint usage Implement streak tracking (daily and participation) Add cron job for daily puzzle rotation Cache current daily puzzle in Redis for fast delivery Build daily challenge UI with global rankings page
+OUTPUT
+Daily competitive ecosystem Streak mechanics Global daily rankings Scheduled puzzle pipeline
+WHY THIS PHASE EXISTS
+Daily challenges give users a reason to return every day. They demonstrate product thinking beyond engineering: retention design, competitive fairness, and the ability to build scheduled, stateful production systems.
+--- ppt/slides/slide19.xml
+P8
+Phase 8 — Advanced Hint Engine
+Make hints intelligent — not just 'reveal a random cell'
+GOAL  ·  Build a 5-layer hint system that teaches actual solving strategies
+TASKS
+Layer 1: Conflict hint — highlight invalid placements Layer 2: Candidate hint — show possible values for a cell Layer 3: Elimination hint — explain why candidates are removed Layer 4: Technique hint — name the strategy (naked pair, etc.) Layer 5: Reveal hint — show correct value with max penalty Add penalty scoring per hint layer and difficulty tier Track hint usage per match for analytics and leaderboard Expose hint stats in player profile and daily challenge
+OUTPUT
+5-layer intelligent hints Penalty-weighted scoring Algorithmic depth Hint usage analytics
+WHY THIS PHASE EXISTS
+A hint engine that names solving techniques shows algorithmic depth a simple 'show answer' button never could. It doubles as a learning tool — a product story that demonstrates both engineering and product maturity.
+--- ppt/slides/slide2.xml
+What Exists Today
+A functional foundation — but with critical engineering gaps that prevent production deployment
+Frontend
+React.js application Socket.IO client JWT Auth context Public matchmaking page Private room flow Leaderboard UI Single-player mode
+Backend
+Node.js + Express Socket.IO server bcrypt password hashing JWT login / register Sudoku generator API Leaderboard controller Room controller
+Database
+MongoDB + Mongoose User model Room model (TTL) Leaderboard collection Match history Player stats Room persistence
+✓  Already stronger than a standard CRUD project — real auth, realtime multiplayer, leaderboard, persistent rooms
+--- ppt/slides/slide20.xml
+P9
+Phase 9 — Frontend Architecture Refactor
+Frontend complexity is about to grow significantly — structure it now
+GOAL  ·  Migrate to feature-based architecture with typed socket contracts
+TASKS
+Migrate to feature-based folder structure (features/ per domain) Build shared/api/ — typed Axios abstraction layer Build shared/socket/ — typed socket client with full event map Migrate game + matchmaking state to Zustand Keep auth in React Context as cross-cutting concern Add socket reconnect logic with exponential backoff Add loading / error / empty states for all async paths Remove all direct socket event string literals from components
+OUTPUT
+Feature-based structure Typed socket contracts Robust reconnect logic Decoupled API + socket layers
+WHY THIS PHASE EXISTS
+A flat component folder breaks past 20 screens. Feature-based architecture gives each domain room to grow independently. Typed event maps eliminate runtime surprises from mismatched socket event names.
+--- ppt/slides/slide21.xml
+P10
+Phase 10 — Testing Architecture
+Without tests, every refactor risks breaking everything that came before it
+GOAL  ·  Create engineering confidence through systematic test coverage
+TASKS
+Install Jest, ts-jest, supertest Unit tests: all Zod validators (auth, socket, game schemas) Unit tests: hint engine all 5 layers plus penalties Unit tests: ELO / rating calculation logic Unit tests: daily puzzle scoring and streak logic Integration tests: full auth flow (register, login, refresh) Integration tests: room lifecycle (create, join, complete) Socket tests: reconnect and disconnect handling
+OUTPUT
+Unit test suite Integration test suite Socket lifecycle tests CI-runnable test baseline
+WHY THIS PHASE EXISTS
+Tests are not optional in a production system — they are the mechanism that lets you change Phase 3 code in Phase 8 without breaking Phase 5. Every feature addition depends on the stability of all previous phases.
+--- ppt/slides/slide22.xml
+P11
+Phase 11 — Load + Performance Testing
+Your architecture is only as scalable as you can prove with actual numbers
+GOAL  ·  Validate horizontal scaling claims through measurable load tests
+TASKS
+Set up k6 and Artillery test suites Simulate 500–1000 concurrent WebSocket connections Load test matchmaking queue throughput and pairing latency Measure WebSocket message latency at p50, p95, p99 Measure Redis operation latency under concurrent load Profile PostgreSQL query times under realistic load Run soak tests — sustained load for 20–30 minutes Find and document the breaking point via stress tests
+OUTPUT
+Performance benchmark report Bottleneck analysis Concrete latency numbers Evidence-backed scaling claims
+WHY THIS PHASE EXISTS
+Anyone can say 'it scales with Redis'. You want to be the engineer who shows the graph. Load testing turns 'scalable architecture' from a claim into a measurable fact with specific answers to interview questions about capacity.
+--- ppt/slides/slide23.xml
+P12
+Phase 12 — Observability + Monitoring
+Production systems are always observable — yours should be too
+GOAL  ·  Make the system's internal state visible and fully debuggable
+TASKS
+Set up Winston structured logging in JSON format Add request ID generation and end-to-end propagation Log all socket events with userId and roomId context Track metrics: room count, queue depth, error rate Track matchmaking latency and socket disconnect rate Add /health endpoint for load balancer health probes Add /ready endpoint checking DB + Redis connectivity Document alert thresholds for key failure conditions
+OUTPUT
+Structured JSON logging End-to-end tracing Health + readiness endpoints Production-grade debuggability
+WHY THIS PHASE EXISTS
+When a bug occurs in production at 2am, structured logs with request IDs are your only window. They let you trace one user's failed match across 20 log lines in seconds rather than hours.
+--- ppt/slides/slide24.xml
+P13
+Phase 13 — DevOps + Deployment
+A project that only runs on your laptop is not a project — it is a prototype
+GOAL  ·  Containerise everything and ship with a real CI/CD pipeline
+TASKS
+Dockerise backend with multi-stage build Dockerise frontend with Nginx for static serving Create docker-compose.yml (app + PostgreSQL + Redis) Add GitHub Actions CI — lint + type-check + test on every PR Add GitHub Actions CD — deploy on main branch merge Configure dev / staging / production environments Deploy backend to Railway or Render Deploy frontend to Vercel or Cloudflare Pages
+OUTPUT
+Dockerised full stack CI/CD on GitHub Actions 3-environment separation One-command local dev setup
+WHY THIS PHASE EXISTS
+Docker + CI/CD means any engineer can clone, run, and deploy in under 5 minutes. This is the baseline expected at every serious engineering organisation. Deployment quality is part of the project story.
+--- ppt/slides/slide25.xml
+P14
+Phase 14 — Documentation + Placement Presentation
+The project is not done until you can explain every decision under pressure
+GOAL  ·  Create placement-ready documentation and a rehearsed demo script
+TASKS
+Write architecture overview in README with diagrams Create architecture flow diagram in draw.io or Excalidraw Create scaling diagram: single server to multi-instance Document all tradeoffs — PostgreSQL vs MongoDB, etc. Prepare answers: why Node, Redis, modular monolith Record a 3-minute demo walkthrough video Prepare live demo: matchmaking → game → leaderboard → daily Add load test performance numbers to README
+OUTPUT
+Architecture diagrams Tradeoff documentation Live demo script 20 interview Q&A answers
+WHY THIS PHASE EXISTS
+The project you built and the project you can explain are two different things. Interviewers ask: why these choices? What breaks first? How do you scale to 50,000 users? Phase 14 prepares you to answer all of them confidently.
+--- ppt/slides/slide26.xml
+Before vs After — The Full Transformation
+Every row represents an interview question you can now answer with confidence
+AREA
+BEFORE
+AFTER
+Language
+✗  JavaScript (no types)
+✓  TypeScript — full type safety
+→
+Database
+✗  MongoDB (wrong data shape)
+✓  PostgreSQL + Prisma ORM
+→
+Shared State
+✗  Process memory (unshared)
+✓  Redis (distributed across instances)
+→
+Auth Token
+✗  JWT in localStorage
+✓  httpOnly cookie + refresh token
+→
+Identity Trust
+✗  Client payload (easily spoofed)
+✓  Server-derived from verified JWT
+→
+Architecture
+✗  God Object — one file owns all
+✓  5 clean domain modules
+→
+Horizontal Scale
+✗  Single server only
+✓  N instances via Redis adapter
+→
+Socket State
+✗  In-memory, process-local
+✓  Redis-backed, shared
+→
+Validation
+✗  None on socket events
+✓  Zod on every socket + API endpoint
+→
+Hints
+✗  None
+✓  5-layer intelligent hint engine
+→
+Daily Challenge
+✗  None
+✓  Puzzle + global rankings + streaks
+→
+Tests
+✗  None
+✓  Unit + integration + socket suite
+→
+Deployment
+✗  npm start on localhost
+✓  Docker + GitHub Actions CI/CD
+→
+--- ppt/slides/slide27.xml
+Interview Readiness — Questions You Can Now Answer
+These are the exact questions strong engineering interviewers ask about backend projects
+Q: Why PostgreSQL over MongoDB?
+→ Game data is relational — users, matches, ratings, and moves need joins and transactions. MongoDB was structurally the wrong choice from the start.
+Q: How does horizontal scaling work here?
+→ Redis holds all shared state. Socket.IO uses the Redis Adapter for cross-instance pub/sub. Any server instance can handle any user's connection.
+Q: How do you prevent cheating?
+→ Server-authoritative engine. The client sends only moves. The server validates against its canonical board. Nothing in client state can be manipulated.
+Q: Why a modular monolith, not microservices?
+→ Same internal separation with far lower operational cost. One deployment, one codebase, easier debugging. Microservices add unjustified complexity at this scale.
+Q: How does matchmaking work at scale?
+→ Players push to a Redis sorted set by ELO. A consumer pops pairs, creates rooms in Redis, and emits match_found via pub/sub.
+Q: What breaks first at 10,000 users?
+→ Redis throughput becomes the bottleneck. Next: Redis Cluster. PostgreSQL also needs PgBouncer connection pooling at that scale.
+After 14 phases, this is no longer a sudoku project — it is a scalable realtime competitive platform.
+--- ppt/slides/slide28.xml
+EXECUTE IN THIS ORDER
+The Path to Production
+TIER 1 — FOUNDATION
+P0: Audit
+P1: TypeScript
+P2: Modular Monolith
+P3: Security
+TIER 2 — CORE
+P4: PostgreSQL
+P5: Redis
+P6: Game Engine
+P7: Daily Challenge
+TIER 3 — QUALITY
+P8: Hints
+P9: Frontend
+P10: Testing
+P11: Load Test
+TIER 4 — PRODUCTION
+P12: Observability
+P13: DevOps
+P14: Docs + Demo
+Execute this plan and you will have a system that is genuinely defensible in any senior engineering interview.
+--- ppt/slides/slide3.xml
+The 6 Critical Flaws
+Why the current implementation cannot go to production as-is
+01
+Client-Trusted Identity
+Server accepts userId from socket payload — easily spoofed by any user
+02
+JWT in localStorage
+Tokens XSS-exposed in localStorage; client decodes its own auth state
+03
+Tight Coupling
+gameSocket.js owns matchmaking + game + DB + leaderboard in one God Object
+04
+In-Memory State
+waitingPlayer & socketRoomMap are process-local — breaks the instant you scale
+05
+5 Sources of Truth
+State split across socket memory, Mongo, frontend, localStorage, auth context
+06
+Stats Coupled to Socket
+updateUserStats() called directly inside socket disconnect handler
+--- ppt/slides/slide4.xml
+Flaws 01 & 02 — Security Failures
+Identity is the most critical trust boundary in any competitive multiplayer system
+FLAW 01  ·  Client-Trusted Identity
+// PublicMatch.jsx
+socket.emit('find_match', { userId: user?.id })
+// CreatePrivateRoom.jsx  — DIFFERENT FIELD!
+socket.emit('create_room',{ userId: user?._id })
+Server trusts identity entirely from client payload user?.id  vs  user?._id — already inconsistent across files Any user can send another user's ID and steal wins Leaderboard updates attributed to wrong user silently FIX: derive user from socket.data after server-side JWT verify
+FLAW 02  ·  JWT in localStorage
+POST /login  →  server returns JWT token
+↓
+localStorage.setItem('token', jwt)
+↓
+jwtDecode(token)  →  client sets user state
+↓
+Client controls its own auth state  ⚠
+XSS attack can steal tokens directly from localStorage No token rotation — long-lived exposure window Client decides its own identity — server has no control FIX: httpOnly cookies + access + refresh token flow
+--- ppt/slides/slide5.xml
+Flaw 03 — Tight Coupling in gameSocket.js
+One file owns every responsibility in the realtime path — the God Object antipattern
+gameSocket.js
+Matchmaking Queue
+Room Creation Logic
+Private Room Join
+Disconnect / Forfeit
+Move Submission
+Winner Detection
+Leaderboard Update
+Socket-User Mapping
+Timer Management
+Memory State Maps
+WHY THIS IS BAD
+Cannot unit-test one feature without risking all others  ·   One bug cascades through every realtime flow  ·   Impossible to reason about — 500+ lines of mixed concerns  ·   Adding any feature means reading the whole file
+--- ppt/slides/slide6.xml
+Flaws 04 & 05 — Why It Cannot Scale Horizontally
+In-memory state is process-local — every instance is completely blind to every other
+Load Balancer
+↙
+↘
+Server Instance A
+waitingPlayer = UserX  ← in process memory
+socketRoomMap = { 'sk_A1': 'room_42' }
+rooms = ['room_42']  ← only in this process
+ALL STATE IS LOCAL TO THIS PROCESS Inaccessible to any other server instance
+Server Instance B
+waitingPlayer = null  ← knows nothing
+socketRoomMap = {}
+rooms = []  ← completely empty
+COMPLETELY BLIND TO INSTANCE A UserY arrives here — will never match UserX
+RESULT:  UserX waits on Instance A. UserY connects to Instance B. Each server has its own waitingPlayer — they never pair. Rooms fragment. Reconnects fail. Broadcasts only reach sockets on the same process. MATCHMAKING IS BROKEN.
+--- ppt/slides/slide7.xml
+Current Architecture — The Problem Visualised
+Single process · client-trusted auth · God Object for all realtime logic · no shared state
+React Frontend
+JWT in localStorage Client decodes token userId in socket emit Socket.IO client Auth context Pages / components
+→
+Node.js Backend
+Express HTTP  ·  /auth  /leaderboard  /sudoku  /rooms
+⚠  gameSocket.js  —  GOD OBJECT
+Matchmaking queue (in-memory) Room create / join / leave logic Game move validation Winner detection Stats DB write inside socket Disconnect / forfeit handling
+→
+MongoDB
+Users Rooms (TTL) Leaderboard Match History
+⚠ PROCESS MEMORY
+waitingPlayer socketRoomMap Socket.IO rooms
+--- ppt/slides/slide8.xml
+Target Architecture — Production-Grade Platform
+Modular monolith · Redis shared state · PostgreSQL · Horizontally scalable
+React + TypeScript Frontend
+↓
+Load Balancer
+↓
+Server A  ·  Server B  ·  Server C
+↓
+Socket.IO Redis Adapter
+↓
+Redis  (Queue · Rooms · Cache · Pub/Sub)
+↓
+PostgreSQL + Prisma ORM
+Backend Modules
+Auth Module
+Game Module
+Matchmaking Module
+Leaderboard Module
+Daily Challenge Module
+Infrastructure
+Zod Validation
+Winston Logger
+Rate Limiter (Redis)
+Error Handler
+Socket Auth Middleware
+Redis:  Matchmaking queue · Active room snapshots · Online presence · Rate counters · Leaderboard cache · Pub/Sub · Socket.IO adapter
+--- ppt/slides/slide9.xml
+Final Tech Stack & Design Decisions
+Every choice is a deliberate tradeoff — not a default
+LANGUAGE
+TypeScript
+Type safety catches payload mismatches before runtime — critical during a large-scale refactor
+DATABASE
+PostgreSQL + Prisma
+Game data is relational — users, matches, ratings, moves need joins and transactions
+CACHE / QUEUE
+Redis
+Shared transient state — matchmaking queue, rooms, pub/sub — must live outside the process
+ARCHITECTURE
+Modular Monolith
+One deployment, clean internal domains — same modularity as microservices, far lower operational cost
+VALIDATION
+Zod
+Runtime schema enforcement on every socket event and HTTP endpoint — no silent trust of client input
+FRONTEND STATE
+Zustand + Context
+Feature-local game state in Zustand; cross-cutting auth in Context — no unnecessary re-renders

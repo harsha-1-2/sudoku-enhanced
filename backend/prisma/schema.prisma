@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(uuid())
+  username        String            @unique
+  email           String            @unique
+  password        String
+  createdAt       DateTime          @default(now())
+  matchesPlayed   Int               @default(0)
+  wins            Int               @default(0)
+  puzzlesSolved   Int               @default(0)
+  totalHintsUsed  Int               @default(0)
+  totalTimeTaken  Int               @default(0)
+  matchHistory    MatchHistory[]
+  practiceHistory PracticeHistory[]
+
+  @@map("users")
+}
+
+model MatchHistory {
+  id     String   @id @default(uuid())
+  result String
+  date   DateTime @default(now())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("match_history")
+}
+
+model PracticeHistory {
+  id         String   @id @default(uuid())
+  solvedAt   DateTime @default(now())
+  difficulty String
+  timeTaken  Int
+  hintsUsed  Int
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("practice_history")
+}
+
+model Room {
+  id          String        @id @default(uuid())
+  roomId      String        @unique
+  players     String[]
+  board       Json
+  solution    Json
+  winner      String?
+  gameStarted Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  userMap     RoomUserMap[]
+
+  @@map("rooms")
+}
+
+model RoomUserMap {
+  id       String @id @default(uuid())
+  socketId String
+  userId   String
+  roomId   String
+  room     Room   @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+
+  @@unique([roomId, socketId])
+  @@map("room_user_map")
+}

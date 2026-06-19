@@ -1,0 +1,71 @@
+.sudoku-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sudoku-board {
+  display: grid;
+  grid-template-columns: repeat(9, 50px);
+  gap: 2px;
+  margin-top: 20px;
+}
+
+.sudoku-cell {
+  width: 50px;
+  height: 50px;
+  border: 1px solid #555;
+  font-size: 20px;
+  text-align: center;
+  outline: none;
+  background: white;
+}
+
+.sudoku-cell:focus {
+  outline: 2px solid #007bff;
+}
+
+.prefilled {
+  background: #dcdcdc;
+  font-weight: bold;
+}
+
+.highlight {
+  background: #ffeaa7;
+}
+
+.controls {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #333;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #000;
+}
+
+.dark {
+  background: #1c1c1c;
+  color: white;
+}
+
+.dark .sudoku-cell {
+  background: #2c2c2c;
+  color: white;
+}
+
+.dark .prefilled {
+  background: #444;
+}
+.dark .sudoku-cell:focus {
+  outline: 2px solid #66b2ff;
+}

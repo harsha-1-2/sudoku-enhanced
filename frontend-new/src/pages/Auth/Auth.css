@@ -1,0 +1,128 @@
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #ebecf0 0%, #f8f7fa 100%);
+  padding: 20px;
+}
+
+.auth-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 3px solid #8ee2c6;
+}
+
+.auth-title {
+  font-size: 32px;
+  font-weight: bold;
+  text-align: center;
+  color: #1f2937;
+  margin: 0 0 24px 0;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  background-color: #f3f4f6;
+  padding: 4px;
+  border-radius: 10px;
+  border: 2px solid #48ecb6;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: transparent;
+  color: #6b7280;
+}
+
+.auth-tab.active {
+  background-color: #47ecb5;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.auth-tab:hover:not(.active) {
+  background-color: #e5e7eb;
+}
+
+.auth-subtitle {
+  font-size: 20px;
+  text-align: center;
+  color: #6b7280;
+  margin: 0 0 32px 0;
+  font-weight: normal;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-input {
+  padding: 14px 16px;
+  font-size: 16px;
+  border: 2px solid #9de6cd;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.3s ease;
+  background-color: #f9fafb;
+  font-family: inherit;
+}
+
+.auth-input:focus {
+  border-color: #52ecbc;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.auth-button {
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #4bf1ba;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 8px;
+}
+
+.auth-button:hover {
+  background-color: #42e9b4;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.auth-button:active {
+  transform: translateY(0);
+}
+
+.auth-message {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.auth-message.success {
+  color: #10b981;
+}
+
+.auth-message.error {
+  color: #ef4444;
+}
