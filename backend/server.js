@@ -14,6 +14,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
   process.env.FRONTEND_URL || "http://localhost:3000",
+    "https://sudoku-enhanced.vercel.app",
   "http://localhost:3000",
   "http://localhost:3002",
   "http://localhost:3003",
