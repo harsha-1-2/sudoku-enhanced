@@ -5,33 +5,33 @@ export const AuthContext = createContext();
 
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [accessToken, setAccessToken] = useState(null); // ✅ added
   const [loading, setLoading] = useState(true);
 
-  // ✅ On mount, verify user with backend using cookie
   useEffect(() => {
-  const verifyUser = async () => {
-    try {
-      const response = await axiosClient.get("/auth/me");
-      setUser(response.data.user);
-    } catch {
-      // /auth/me failed → try refresh manually before giving up
+    const verifyUser = async () => {
       try {
-        await axiosClient.post("/auth/refresh");
         const response = await axiosClient.get("/auth/me");
         setUser(response.data.user);
       } catch {
-        setUser(null); // Both failed → genuinely logged out
+        try {
+          const refreshRes = await axiosClient.post("/auth/refresh");
+          setAccessToken(refreshRes.data.accessToken); // ✅ added
+          const response = await axiosClient.get("/auth/me");
+          setUser(response.data.user);
+        } catch {
+          setUser(null);
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    verifyUser();
+  }, []);
 
-  verifyUser();
-}, []);
-
-  async function loginUser(userData) {
+  async function loginUser(userData, token) { // ✅ accepts token now
     setUser(userData);
+    setAccessToken(token);
   }
 
   async function logoutUser() {
@@ -41,10 +41,11 @@ export default function AuthProvider({ children }) {
       console.error("Logout failed:", err);
     }
     setUser(null);
+    setAccessToken(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loginUser, logoutUser, loading }}>
+    <AuthContext.Provider value={{ user, accessToken, loginUser, logoutUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
