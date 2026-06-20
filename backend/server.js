@@ -28,7 +28,10 @@ app.use(cors({
   origin: (origin, callback) => {
     const normalizedOrigin = origin?.replace(/\/$/, '');
     const normalizedAllowed = allowedOrigins.map(o => o.replace(/\/$/, ''));
-    if (!origin || normalizedAllowed.includes(normalizedOrigin)) {
+
+    const isVercelPreview = origin && /^https:\/\/sudoku-enhanced-[\w-]+-harsha-1-2s-projects\.vercel\.app$/.test(origin);
+
+    if (!origin || normalizedAllowed.includes(normalizedOrigin) || isVercelPreview) {
       callback(null, true);
     } else {
       console.error(`CORS rejected origin: ${origin}`);
