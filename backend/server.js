@@ -59,10 +59,22 @@ function parseCookies(cookieHeader) {
 }
 
 io.use((socket, next) => {
+  const authToken = socket.handshake.auth?.token;
+
+  if (authToken) {
+    try {
+      const verified = jwt.verify(authToken, process.env.JWT_SECRET);
+      socket.data.user = verified;
+      return next();
+    } catch (err) {
+      return next(new Error("Authentication error"));
+    }
+  }
+
+  // fallback: cookie-based (works for same-site/proxied requests)
   const cookieHeader = socket.handshake.headers.cookie;
   const cookies = parseCookies(cookieHeader);
   const token = cookies.refreshToken;
-
   if (!token) return next(new Error("Authentication error"));
 
   try {
@@ -76,7 +88,6 @@ io.use((socket, next) => {
     return next(new Error("Authentication error"));
   }
 });
-
 // ✅ Optional: verify DB connection on startup and gracefully shut down Prisma
 async function startServer() {
   try {
