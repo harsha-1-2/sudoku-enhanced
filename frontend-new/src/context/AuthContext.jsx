@@ -1,6 +1,6 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useRef } from "react";
 import axiosClient from "../api/axiosClient";
-import socket, { connectSocket } from "../hooks/useSocket"; // ✅ adjust path if needed
+import socket, { connectSocket } from "../hooks/useSocket";
 
 export const AuthContext = createContext();
 
@@ -8,24 +8,24 @@ export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const accessTokenRef = useRef(null); // ✅ added
 
   useEffect(() => {
     const verifyUser = async () => {
       try {
         const response = await axiosClient.get("/auth/me");
         setUser(response.data.user);
-        // ✅ reconnect socket on page refresh if already logged in
-        if (accessToken) {
-          connectSocket(accessToken);
+        if (accessTokenRef.current) {
+          connectSocket(accessTokenRef.current);
         }
       } catch {
         try {
           const refreshRes = await axiosClient.post("/auth/refresh");
           const newToken = refreshRes.data.accessToken;
+          accessTokenRef.current = newToken; // ✅ use ref
           setAccessToken(newToken);
           const response = await axiosClient.get("/auth/me");
           setUser(response.data.user);
-          // ✅ connect socket after successful refresh
           if (newToken) connectSocket(newToken);
         } catch {
           setUser(null);
@@ -36,12 +36,12 @@ export default function AuthProvider({ children }) {
       }
     };
     verifyUser();
-  }, []);
+  }, []); // ✅ no eslint warning now
 
   async function loginUser(userData, token) {
     setUser(userData);
     setAccessToken(token);
-    // ✅ connect socket on login
+    accessTokenRef.current = token; // ✅ keep ref in sync
     if (token) connectSocket(token);
   }
 
@@ -53,7 +53,7 @@ export default function AuthProvider({ children }) {
     }
     setUser(null);
     setAccessToken(null);
-    // ✅ disconnect socket on logout
+    accessTokenRef.current = null; // ✅ clear ref
     socket.disconnect();
   }
 
