@@ -4,6 +4,77 @@ const { generateSudoku } = require("../services/sudokuGenerator");
 let waitingPlayer = null;
 let isMatchmaking = false;
 const socketRoomMap = new Map();
+const inMemoryRooms = new Map();
+
+async function saveRoom(roomData) {
+  if (prisma.isDbConnected()) {
+    const { userMap, ...roomFields } = roomData;
+    return prisma.room.create({
+      data: {
+        ...roomFields,
+        userMap: {
+          create: userMap || []
+        }
+      }
+    });
+  }
+
+  const roomRecord = {
+    ...roomData,
+    createdAt: new Date(),
+    id: `mem-${Math.random().toString(36).slice(2, 10)}`,
+  };
+  inMemoryRooms.set(roomData.roomId, roomRecord);
+  return roomRecord;
+}
+
+async function findRoom(roomId) {
+  if (prisma.isDbConnected()) {
+    return prisma.room.findUnique({
+      where: { roomId },
+      include: { userMap: true }
+    });
+  }
+
+  return inMemoryRooms.get(roomId) || null;
+}
+
+async function updateRoom(roomId, updateData) {
+  if (prisma.isDbConnected()) {
+    return prisma.room.update({
+      where: { roomId },
+      data: updateData
+    });
+  }
+
+  const room = inMemoryRooms.get(roomId);
+  if (!room) return null;
+  const updated = { ...room, ...updateData };
+  inMemoryRooms.set(roomId, updated);
+  return updated;
+}
+
+async function addUserMap(roomId, socketId, userId) {
+  if (!prisma.isDbConnected()) {
+    const room = inMemoryRooms.get(roomId);
+    if (room) {
+      const existing = room.userMap?.find((entry) => entry.socketId === socketId);
+      if (!existing) {
+        room.userMap = [...(room.userMap || []), { socketId, userId }];
+      }
+    }
+    return;
+  }
+
+  return prisma.room.update({
+    where: { roomId },
+    data: {
+      userMap: {
+        create: [{ socketId, userId }]
+      }
+    }
+  });
+}
 
 module.exports = (io) => {
   io.on("connection", (socket) => {
@@ -88,20 +159,16 @@ module.exports = (io) => {
 
           console.log(`Creating room ${roomId} for ${player1.id} and ${player2.id}`);
 
-          await prisma.room.create({
-            data: {
-              roomId,
-              board: puzzle,
-              solution,
-              players: [player1.id, player2.id],
-              winner: null,
-              userMap: {
-                create: [
-                  { socketId: player1.id, userId: player1.data.user?.id },
-                  { socketId: player2.id, userId: player2.data.user?.id },
-                ]
-              }
-            }
+          await saveRoom({
+            roomId,
+            board: puzzle,
+            solution,
+            players: [player1.id, player2.id],
+            winner: null,
+            userMap: [
+              { socketId: player1.id, userId: player1.data.user?.id },
+              { socketId: player2.id, userId: player2.data.user?.id },
+            ]
           });
 
           socketRoomMap.set(player1.id, roomId);
@@ -138,17 +205,13 @@ module.exports = (io) => {
         const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
         const { puzzle, solution } = generateSudoku();
 
-        await prisma.room.create({
-          data: {
-            roomId,
-            board: puzzle,
-            solution,
-            players: [socket.id],
-            winner: null,
-            userMap: {
-              create: [{ socketId: socket.id, userId }]
-            }
-          }
+        await saveRoom({
+          roomId,
+          board: puzzle,
+          solution,
+          players: [socket.id],
+          winner: null,
+          userMap: [{ socketId: socket.id, userId }]
         });
 
         socket.join(roomId);
@@ -161,37 +224,29 @@ module.exports = (io) => {
 
     socket.on("join_room", async (data) => {
       try {
-        const roomId = (data && data.roomId) ? data.roomId : data;
-        const room = await prisma.room.findUnique({
-          where: { roomId: roomId.toUpperCase() },
-          include: { userMap: true }
-        });
+        const roomId = String((data && data.roomId) ? data.roomId : data || "").toUpperCase();
+        const room = await findRoom(roomId);
 
         if (!room) return socket.emit("room_error", "Room not found");
 
         socket.join(roomId);
         socketRoomMap.set(socket.id, roomId);
 
-        const alreadyInRoom = room.players.includes(socket.id);
+        const alreadyInRoom = (room.players || []).includes(socket.id);
         if (!alreadyInRoom) {
-          await prisma.room.update({
-            where: { roomId: roomId.toUpperCase() },
-            data: {
-              players: { push: socket.id },
-              userMap: {
-                create: [{ socketId: socket.id, userId }]
-              }
-            }
+          await updateRoom(roomId, {
+            players: [...(room.players || []), socket.id]
           });
+          await addUserMap(roomId, socket.id, userId);
         }
 
         socket.emit("joined_room", room.board);
         io.to(roomId).emit("player_joined", {
-          count: room.players.length + (alreadyInRoom ? 0 : 1),
+          count: (room.players || []).length + (alreadyInRoom ? 0 : 1),
           winner: room.winner || null
         });
 
-        const updatedCount = alreadyInRoom ? room.players.length : room.players.length + 1;
+        const updatedCount = alreadyInRoom ? (room.players || []).length : (room.players || []).length + 1;
         if (updatedCount === 2 && !room.winner) {
           io.to(roomId).emit("start_game");
         }
@@ -205,22 +260,17 @@ module.exports = (io) => {
     // =================================================================
     socket.on("submit_board", async ({ roomId, board }) => {
       try {
-        const room = await prisma.room.findUnique({
-          where: { roomId },
-          include: { userMap: true }
-        });
+        const normalizedRoomId = String(roomId || "").toUpperCase();
+        const room = await findRoom(normalizedRoomId);
 
         if (!room || room.winner) return;
 
         const isCorrect = JSON.stringify(board) === JSON.stringify(room.solution);
 
         if (isCorrect) {
-          await prisma.room.update({
-            where: { roomId },
-            data: { winner: socket.id }
-          });
+          await updateRoom(normalizedRoomId, { winner: socket.id });
 
-          io.to(roomId).emit("game_over", { winnerId: socket.id });
+          io.to(normalizedRoomId).emit("game_over", { winnerId: socket.id });
           await updateUserStats(socket.id, room);
         } else {
           socket.emit("wrong_solution");
@@ -247,20 +297,15 @@ module.exports = (io) => {
       const roomId = socketRoomMap.get(socket.id);
       if (roomId) {
         try {
-          const room = await prisma.room.findUnique({
-            where: { roomId },
-            include: { userMap: true }
-          });
+          const normalizedRoomId = String(roomId).toUpperCase();
+          const room = await findRoom(normalizedRoomId);
 
-          if (room && !room.winner && room.players.length === 2) {
-            const otherSocketId = room.players.find(id => id !== socket.id);
+          if (room && !room.winner && (room.players || []).length === 2) {
+            const otherSocketId = (room.players || []).find(id => id !== socket.id);
             if (otherSocketId) {
-              await prisma.room.update({
-                where: { roomId },
-                data: { winner: otherSocketId }
-              });
+              await updateRoom(normalizedRoomId, { winner: otherSocketId });
 
-              io.to(roomId).emit("game_over", { winnerId: otherSocketId });
+              io.to(normalizedRoomId).emit("game_over", { winnerId: otherSocketId });
               await updateUserStats(otherSocketId, room);
 
               const otherSocket = io.sockets.sockets.get(otherSocketId);

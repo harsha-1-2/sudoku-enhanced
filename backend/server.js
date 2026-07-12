@@ -73,14 +73,14 @@ io.use((socket, next) => {
   }
 });
 
-// ✅ Optional: verify DB connection on startup and gracefully shut down Prisma
+// ✅ Verify DB connection on startup, but keep the server alive for socket testing if it is unavailable
 async function startServer() {
-  try {
-    await prisma.$connect();
+  const connected = await prisma.ensureDbConnected();
+
+  if (connected) {
     console.log("PostgreSQL connected via Prisma");
-  } catch (err) {
-    console.error("Database connection failed:", err);
-    process.exit(1);
+  } else {
+    console.warn("Database connection unavailable. Continuing without persistence for now.");
   }
 }
 
@@ -98,13 +98,17 @@ require("./sockets/gameSocket")(io);
 
 // ✅ Graceful shutdown — close Prisma connection when server stops
 process.on("SIGINT", async () => {
-  await prisma.$disconnect();
+  if (prisma.isDbConnected()) {
+    await prisma.$disconnect();
+  }
   console.log("Prisma disconnected. Server shutting down.");
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
-  await prisma.$disconnect();
+  if (prisma.isDbConnected()) {
+    await prisma.$disconnect();
+  }
   process.exit(0);
 });
 

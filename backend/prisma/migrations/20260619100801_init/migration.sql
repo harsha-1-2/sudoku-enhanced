@@ -40,7 +40,7 @@ CREATE TABLE "practice_history" (
 CREATE TABLE "rooms" (
     "id" TEXT NOT NULL,
     "roomId" TEXT NOT NULL,
-    "players" TEXT[],
+    "players" JSONB NOT NULL,
     "board" JSONB NOT NULL,
     "solution" JSONB NOT NULL,
     "winner" TEXT,

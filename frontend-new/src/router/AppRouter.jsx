@@ -43,7 +43,7 @@ export default function AppRouter() {
       <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Auth />} />
-        <Route path="/register" element={<Navigate to="/login" replace />} />
+        <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Auth />} />
 
         <Route
           path="/dashboard"

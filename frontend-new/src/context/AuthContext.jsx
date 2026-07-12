@@ -7,28 +7,32 @@ export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ On mount, verify user with backend using cookie
   useEffect(() => {
-  const verifyUser = async () => {
-    try {
-      const response = await axiosClient.get("/auth/me");
-      setUser(response.data.user);
-    } catch {
-      // /auth/me failed → try refresh manually before giving up
-      try {
-        await axiosClient.post("/auth/refresh");
-        const response = await axiosClient.get("/auth/me");
-        setUser(response.data.user);
-      } catch {
-        setUser(null); // Both failed → genuinely logged out
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+    let cancelled = false;
 
-  verifyUser();
-}, []);
+    const verifyUser = async () => {
+      try {
+        const response = await axiosClient.get("/auth/me");
+        if (!cancelled) {
+          setUser(response.data.user || null);
+        }
+      } catch {
+        if (!cancelled) {
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    verifyUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function loginUser(userData) {
     setUser(userData);
