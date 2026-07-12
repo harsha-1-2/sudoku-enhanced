@@ -88,12 +88,7 @@ io.use((socket, next) => {
     return next(new Error("Authentication error"));
   }
 });
-<<<<<<< HEAD
 
-// ✅ Verify DB connection on startup, but keep the server alive for socket testing if it is unavailable
-=======
-// ✅ Optional: verify DB connection on startup and gracefully shut down Prisma
->>>>>>> 4b77b984879ebe11aaad1c157881663a221b3ef3
 async function startServer() {
   const connected = await prisma.ensureDbConnected();
 
