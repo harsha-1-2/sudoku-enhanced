@@ -5,7 +5,6 @@ const prisma = new PrismaClient({
   log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
 });
 
-<<<<<<< HEAD
 let dbReady = false;
 
 async function ensureDbConnected() {
@@ -30,7 +29,6 @@ module.exports = Object.assign(prisma, {
   ensureDbConnected,
   isDbConnected,
 });
-=======
 // Retry once on transient connection errors (Neon cold-start)
 prisma.$use(async (params, next) => {
   try {
@@ -49,4 +47,3 @@ prisma.$use(async (params, next) => {
 });
 
 module.exports = prisma;
->>>>>>> 4b77b984879ebe11aaad1c157881663a221b3ef3
