@@ -14,6 +14,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
   process.env.FRONTEND_URL || "http://localhost:3000",
+    "https://sudoku-enhanced.vercel.app",
   "http://localhost:3000",
   "http://localhost:3002",
   "http://localhost:3003",
@@ -27,7 +28,10 @@ app.use(cors({
   origin: (origin, callback) => {
     const normalizedOrigin = origin?.replace(/\/$/, '');
     const normalizedAllowed = allowedOrigins.map(o => o.replace(/\/$/, ''));
-    if (!origin || normalizedAllowed.includes(normalizedOrigin)) {
+
+    const isVercelPreview = origin && /^https:\/\/sudoku-enhanced-[\w-]+-harsha-1-2s-projects\.vercel\.app$/.test(origin);
+
+    if (!origin || normalizedAllowed.includes(normalizedOrigin) || isVercelPreview) {
       callback(null, true);
     } else {
       console.error(`CORS rejected origin: ${origin}`);
@@ -55,10 +59,22 @@ function parseCookies(cookieHeader) {
 }
 
 io.use((socket, next) => {
+  const authToken = socket.handshake.auth?.token;
+
+  if (authToken) {
+    try {
+      const verified = jwt.verify(authToken, process.env.JWT_SECRET);
+      socket.data.user = verified;
+      return next();
+    } catch (err) {
+      return next(new Error("Authentication error"));
+    }
+  }
+
+  // fallback: cookie-based (works for same-site/proxied requests)
   const cookieHeader = socket.handshake.headers.cookie;
   const cookies = parseCookies(cookieHeader);
   const token = cookies.refreshToken;
-
   if (!token) return next(new Error("Authentication error"));
 
   try {
@@ -72,8 +88,12 @@ io.use((socket, next) => {
     return next(new Error("Authentication error"));
   }
 });
+<<<<<<< HEAD
 
 // ✅ Verify DB connection on startup, but keep the server alive for socket testing if it is unavailable
+=======
+// ✅ Optional: verify DB connection on startup and gracefully shut down Prisma
+>>>>>>> 4b77b984879ebe11aaad1c157881663a221b3ef3
 async function startServer() {
   const connected = await prisma.ensureDbConnected();
 
